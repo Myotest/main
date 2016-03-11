@@ -156,7 +156,7 @@ uint16_t GetSensSamplingTime(sensor_handle_t *phy_sensor)
 	uint16_t odr = 0;
 
 	if (phy_sensor != NULL)
-		phy_sensor_get_odr_value(phy_sensor, &odr);
+		phy_sensor_get_odr_value(phy_sensor->ptr, &odr);
 	return odr;
 }
 
@@ -166,7 +166,8 @@ uint16_t SetSensSamplingTime(sensor_handle_t *phy_sensor, uint16_t odr_x10)
 
 	if (phy_sensor != NULL) {
 		ret = phy_sensor_set_odr_value(phy_sensor->ptr, odr_x10);
-		phy_sensor->freq = odr_x10;
+		if (ret != 0)
+			phy_sensor->freq = odr_x10;
 	}
 	return ret;
 }

@@ -50,10 +50,11 @@
 #define MATCH_BUFFER_LIMIT_SIZE     128
 #define RAW_DATA_BUFFER_LIMIT_SIZE  1024
 #define RAW_DATA_DUMP_BUFFER_SIZE   256
-#define POLLING_TOLERANCE           30
+#define POLLING_TOLERANCE           10
 #define ON                    (1 << 0)
 #define IDLE                  (1 << 1)
 #define SUBSCRIBED            (1 << 2)
+#define WAKE_UP_CLEAR_FIFO    (1 << 3)
 #define IGNORE                (1 << 1)
 
 #define PHY_TYPE_KEY_LENGTH  3

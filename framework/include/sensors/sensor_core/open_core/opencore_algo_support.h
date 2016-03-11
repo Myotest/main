@@ -65,6 +65,10 @@ extern char _s_feedinit[], _e_feedinit[];
 	__section(".openinit.exposed") = &name
 extern char _s_exposedinit[], _e_exposedinit[];
 
+#define HOLD_WAKE_UP_CLEAR_FIFO(feed) do {	 \
+		feed->wake_up_clear_fifo_flag = 1;	\
+} while (0);
+
 /**
  * this macro is used to stop going to idle state, which means keep fed raw sensor data
  * even though no motion occurs.

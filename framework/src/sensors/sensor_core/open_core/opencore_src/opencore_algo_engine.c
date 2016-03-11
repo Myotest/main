@@ -331,7 +331,7 @@ static void FeedSensData2Algo(void)
 
 	for(list_t* next = feed_list.head; next != NULL; next = next->next){
 		feed_general_t* feed = (feed_general_t*)next;
-		if((feed->stat_flag & ON) != 0 && (feed->stat_flag & IDLE) == 0){
+		if((feed->stat_flag & ON) != 0 && ((feed->stat_flag & IDLE) == 0 || (feed->stat_flag & WAKE_UP_CLEAR_FIFO) != 0)){
 			//classify feed and do with it
 			if(feed->type != BASIC_ALGO_RAWDATA && feed->demand_length == 1){
 				FeedSensDataDirectly(feed);
@@ -385,7 +385,8 @@ static int ReadFifo(sensor_handle_t* phy_sensor, int* fifo_clear)
 	do{
 		sensor_handle_t* phy_sensor_node = (sensor_handle_t*)((void*)share_list_head
 			- offsetof(sensor_handle_t, fifo_share_link));
-		if((phy_sensor_node->stat_flag & ON) != 0 && phy_sensor_node->fifo_share_read_sync_done == 0){
+		if((phy_sensor_node->stat_flag & ON) != 0 && phy_sensor_node->fifo_share_read_sync_done == 0
+			&& ((phy_sensor_node->stat_flag & IDLE) == 0 || read_out_fifo_flag != 0)){
 			mutex_lock(phy_sensor_node->mutex, OS_WAIT_FOREVER);
 			ret = phy_sensor_fifo_read(phy_sensor_node->ptr, (uint8_t*)phy_sensor_node->buffer,
 				(uint16_t)phy_sensor_node->buffer_length);
@@ -464,11 +465,11 @@ static void handle_algo_ref_port(struct message* m, void* data)
 				if(phy_type_fifo_clean_cnt == phy_type_fifo_cnt)
 					read_out_fifo_flag = 0;
 
+				FeedSensData2Algo();
+
 				struct ia_cmd* cmd = (struct ia_cmd*)balloc(sizeof(struct ia_cmd), NULL);
 				cmd->cmd_id = CMD_FIFO_CLEAR_CHECK_SC;
 				ipc_2core_send(cmd);
-
-				FeedSensData2Algo();
 			}
 			break;
 		default:

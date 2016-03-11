@@ -35,7 +35,6 @@
 #include "opencore_main.h"
 static int poll_timeout = OS_WAIT_FOREVER;
 static char stack[STACKSIZE] __aligned(4);
-static uint8_t await_algo_idle_flag;
 static uint8_t no_motion_flag;
 static uint8_t calibration_flag;
 int read_out_fifo_flag = 0;
@@ -57,11 +56,6 @@ static int SensorCoreProcess(int* poll_timeout)
 		double ct = get_uptime_32k() * (double)1000 / 32768;
 		if(ct < last_ct)
 			RefleshSensorCore();
-
-		if(last_poll_timeout != 0 && last_poll_timeout != FOREVER_VALUE && ct > last_ct && ct - last_ct > last_poll_timeout){
-			if(ct - last_ct - last_poll_timeout > 100)
-				RefleshSensorCore();
-		}
 
 		last_ct = ct;
 		act_npp = 0;
@@ -125,6 +119,7 @@ static int SensorCoreProcess(int* poll_timeout)
 							node->raw_data_count = ret / phy_sensor->sensor_data_frame_size;
 							uint8_t head_for_raw = phy_sensor->head_for_algo == 0 ? 1 : 0;
 							list_add(&phy_sensor->raw_data_head[head_for_raw], &node->raw_data_node);
+							act_algo++;
 						}else{
 							if(node != NULL)
 								FreeInDss((void*)node);
@@ -134,7 +129,6 @@ static int SensorCoreProcess(int* poll_timeout)
 					}
 					phy_sensor->npp = ct + phy_sensor->pi;
 					reg_mark++;
-					act_algo++;
 				}
 			}
 		}
@@ -555,24 +549,21 @@ static void PrepareSWtappingDetect(void)
 				if(demand->type == SENSOR_ACCELEROMETER){
 					sensor_handle_t* phy_sensor = GetPollSensStruct(demand->type, demand->id);
 					if(phy_sensor != NULL && phy_sensor->fifo_length > 0 && phy_sensor->fifo_use_flag == 0){
-						if(phy_sensor->buffer_length != RAW_DATA_BUFFER_LIMIT_SIZE){
-							if(phy_sensor->buffer != NULL){
-								void* temp_ptr = phy_sensor->buffer - offsetof(struct sensor_data, data);
-								bfree(temp_ptr);
-								phy_sensor->buffer = NULL;
-								phy_sensor->buffer_length = 0;
-							}
-
-							phy_sensor->buffer = balloc(RAW_DATA_BUFFER_LIMIT_SIZE, NULL);
-							if(phy_sensor->buffer == NULL)
-								break;
-
-							memset(phy_sensor->buffer, 0, RAW_DATA_BUFFER_LIMIT_SIZE);
-							phy_sensor->buffer_length = RAW_DATA_BUFFER_LIMIT_SIZE;
-							phy_sensor_enable_hwfifo_with_buffer(phy_sensor->ptr, 1,
-								(uint8_t *)phy_sensor->buffer, phy_sensor->buffer_length);
-							phy_sensor->fifo_use_flag = 1;
+						if(phy_sensor->buffer != NULL){
+							void* temp_ptr = phy_sensor->buffer - offsetof(struct sensor_data, data);
+							bfree(temp_ptr);
+							phy_sensor->buffer = NULL;
+							phy_sensor->buffer_length = 0;
 						}
+
+						phy_sensor->buffer = AllocFromDss(RAW_DATA_BUFFER_LIMIT_SIZE);
+						if(phy_sensor->buffer == NULL)
+							break;
+
+						phy_sensor->buffer_length = RAW_DATA_BUFFER_LIMIT_SIZE;
+						phy_sensor_enable_hwfifo_with_buffer(phy_sensor->ptr, 1,
+							(uint8_t *)phy_sensor->buffer, phy_sensor->buffer_length);
+						phy_sensor->fifo_use_flag = 1;
 					}
 					break;
 				}
@@ -586,69 +577,87 @@ extern uint8_t raw_data_dump_flag;
 
 static void SuspendJudge(void)
 {
-	await_algo_idle_flag = 0;
 	for(list_t* next = feed_list.head; next != NULL; next = next->next){
 		feed_general_t* feed = (feed_general_t*)next;
 		if((feed->stat_flag & ON) != 0 && (feed->stat_flag & IDLE) == 0 && feed->no_idle_flag == 0){
 			if(feed->idle_hold_flag == 0){
 				feed->stat_flag |= IDLE;
-				if((feed->stat_flag & ON) != 0){
-					if(raw_data_dump_flag == 0 && feed->ctl_api.goto_idle != NULL){
-						TriggerAlgoEngine(ALGO_GOTO_IDLE, (void*)feed);
-						feed->mark_flag |= IDLE;
-					}
+				if(raw_data_dump_flag == 0 && feed->ctl_api.goto_idle != NULL)
+					TriggerAlgoEngine(ALGO_GOTO_IDLE, (void*)feed);
 					//phy_sensor ref--
-					for(int i = 0; i < feed->demand_length; i++){
-						sensor_data_demand_t* demand = &(feed->demand[i]);
-						if(demand->freq != 0){
-							sensor_handle_t* phy_sensor = GetPollSensStruct(demand->type, demand->id);
-							if(phy_sensor != NULL){
-								phy_sensor->idle_ref--;
-								if(phy_sensor->idle_ref == 0){
-									// phy_sensor IDLE
-									phy_sensor->stat_flag |= IDLE;
+				for(int i = 0; i < feed->demand_length; i++){
+					sensor_data_demand_t* demand = &(feed->demand[i]);
+					if(demand->freq != 0){
+						sensor_handle_t* phy_sensor = GetPollSensStruct(demand->type, demand->id);
+						if(phy_sensor != NULL){
+							phy_sensor->idle_ref--;
+							if(phy_sensor->idle_ref == 0){
+								// phy_sensor IDLE
+								phy_sensor->stat_flag |= IDLE;
 #ifdef SUPPORT_INTERRUPT_MODE
-									if(phy_sensor->fifo_length > 0 && phy_sensor->fifo_use_flag != 0){
-										//if support fifo int, register cb, need_poll = 0
-										if((phy_sensor->attri_mask & PHY_SENSOR_REPORT_MODE_INT_FIFO_MASK) != 0){
-												phy_sensor_watermark_property_t temp_prop = {
-																							.count = 0,
-																							.callback = NULL,
-																							.priv_data = NULL,
-																							};
-												phy_sensor_set_property(phy_sensor->ptr, SENSOR_PROP_FIFO_WATERMARK, &temp_prop);
-										}
-									}else{
-										phy_sensor_enable(phy_sensor->ptr, 0);
-										//if support reg int, register cb, need_poll = 0
-										if((phy_sensor->attri_mask & PHY_SENSOR_REPORT_MODE_INT_REG_MASK) != 0)
-											phy_sensor_data_unregister_callback(phy_sensor->ptr);
+								if(phy_sensor->fifo_length > 0 && phy_sensor->fifo_use_flag != 0){
+									//if support fifo int, register cb, need_poll = 0
+									if((phy_sensor->attri_mask & PHY_SENSOR_REPORT_MODE_INT_FIFO_MASK) != 0){
+											phy_sensor_watermark_property_t temp_prop = {
+												.count = 0,
+												.callback = NULL,
+												.priv_data = NULL,
+												};
+											phy_sensor_set_property(phy_sensor->ptr, SENSOR_PROP_FIFO_WATERMARK, &temp_prop);
+											SetSensSamplingTime(phy_sensor, 0);
 									}
-#endif
-									phy_sensor_set_property(phy_sensor->ptr, SENSOR_PROP_SAMPLING_IN_IDLE, NULL);
+								}else{
+									phy_sensor_enable(phy_sensor->ptr, 0);
+									//if support reg int, register cb, need_poll = 0
+									if((phy_sensor->attri_mask & PHY_SENSOR_REPORT_MODE_INT_REG_MASK) != 0)
+										phy_sensor_data_unregister_callback(phy_sensor->ptr);
 								}
-
+#endif
 							}
+
 						}
 					}
 				}
-			}else
-				await_algo_idle_flag++;
+			}
 		}
 	}
 
-	if(await_algo_idle_flag == 0){
-		sensor_handle_t* tapping_sensor = GetIntSensStruct(SENSOR_TAPPING, DEFAULT_ID);
-		if(tapping_sensor == NULL || (tapping_sensor->stat_flag & ON) == 0)
-			PrepareSWtappingDetect();
+	uint8_t sw_tap_detect_flag = 0;
+
+	sensor_handle_t* tapping_sensor = GetIntSensStruct(SENSOR_TAPPING, DEFAULT_ID);
+	if(tapping_sensor == NULL || (tapping_sensor->stat_flag & ON) == 0)
+		sw_tap_detect_flag = 1;
+
+	for(list_t* next = feed_list.head; next != NULL; next = next->next){
+		feed_general_t* feed = (feed_general_t*)next;
+		if((feed->stat_flag & ON) != 0 && feed->wake_up_clear_fifo_flag == 1)
+			feed->stat_flag |= WAKE_UP_CLEAR_FIFO;
+
+		if(sw_tap_detect_flag == 1 && feed->type == BASIC_ALGO_TAPPING && (feed->stat_flag & ON) != 0)
+			feed->stat_flag |= WAKE_UP_CLEAR_FIFO;
 	}
+
+	RefleshSensorCore();
+
+	if(sw_tap_detect_flag == 1)
+		PrepareSWtappingDetect();
+
+	for(list_t* node = phy_sensor_poll_active_list.head; node != NULL; node = node->next){
+		sensor_handle_t* phy_sensor = (sensor_handle_t*)((void*)node - offsetof(sensor_handle_t, links.poll.poll_active_link));
+		if((phy_sensor->stat_flag & IDLE) != 0 && phy_sensor->fifo_use_flag != 0 ){
+			phy_sensor_sample_idle_t idle_prop = { .odr_x10 = phy_sensor->freq, };
+			phy_sensor_set_property(phy_sensor->ptr, SENSOR_PROP_SAMPLING_IN_IDLE, &idle_prop);
+		}
+	}
+
 }
 
-static void ClearPhysIdle(void)
+static void ClearIdle(void)
 {
 	for(list_t* next = feed_list.head; next != NULL; next = next->next){
 		feed_general_t* feed = (feed_general_t*)next;
 		if((feed->stat_flag & ON) != 0){
+			feed->stat_flag &= ~(WAKE_UP_CLEAR_FIFO | IDLE);
 			for(int i = 0; i < feed->demand_length; i++){
 				sensor_data_demand_t* demand = &(feed->demand[i]);
 				if(demand->freq != 0){
@@ -666,8 +675,8 @@ static void ClearPhysIdle(void)
 static int ReadoutFifoProcess(void)
 {
 	if(read_out_fifo_flag == 0){
+		ClearIdle();
 		RefleshSensorCore();
-		ClearPhysIdle();
 	}else
 		TriggerAlgoEngine(CLEAR_FIFOS, NULL);
 	return 0;
@@ -678,23 +687,18 @@ static void ResumeJudge(void)
 	for(list_t* next = feed_list.head; next != NULL; next = next->next){
 		feed_general_t* feed = (feed_general_t*)next;
 		if((feed->stat_flag & IDLE) != 0){
-			feed->stat_flag &= ~IDLE;
-			if(raw_data_dump_flag == 0 && feed->ctl_api.out_idle != NULL && (feed->mark_flag & IDLE) != 0){
+			if(feed->ctl_api.out_idle != NULL)
 				TriggerAlgoEngine(ALGO_OUT_IDLE, (void*)feed);
-				feed->mark_flag &= ~IDLE;
-			}
 		}
 	}
-
-	await_algo_idle_flag = 0;
 
 	sensor_handle_t* tapping_sensor = GetIntSensStruct(SENSOR_TAPPING, DEFAULT_ID);
 	if(tapping_sensor == NULL || (tapping_sensor->stat_flag & ON) == 0){
 		read_out_fifo_flag = 1;
 		ReadoutFifoProcess();
 	}else{
+		ClearIdle();
 		RefleshSensorCore();
-		ClearPhysIdle();
 	}
 }
 
@@ -1008,23 +1012,20 @@ static void opencore_fiber(void)
 				pr_error(LOG_MODULE_OPEN_CORE, "poll=%d, elapse=%d,ret=%d", poll_timeout, actual_elapse, ret);
 		}
 
-		uint32_t temp;
 back:
-		temp = get_uptime_ms();
+		ts_last = get_uptime_ms();
 		act_algo = SensorCoreProcess(&poll_timeout);
 		if(1 == 1){
-			if(get_uptime_ms() - temp > 30)
+			if(get_uptime_ms() - ts_last > 30)
 				pr_error(LOG_MODULE_OPEN_CORE, "pt=%d, trc=%d, roc=%d, loop=%d, reg=%d, fifo=%d",
-					poll_timeout, get_uptime_ms() - temp, read_ohrm_consume, loop, reg_mark, fifo_mark);
+					poll_timeout, get_uptime_ms() - ts_last, read_ohrm_consume, loop, reg_mark, fifo_mark);
 		}
 		if(act_algo > 0)
 			TriggerAlgoEngine(ALGO_PROCESS, NULL);
 
 		ts_last = get_uptime_ms();
-		if(await_algo_idle_flag != 0)
-			SuspendJudge();
 
-		if(poll_timeout == FOREVER_VALUE || poll_timeout >= 15){
+		if(poll_timeout == FOREVER_VALUE || poll_timeout >= 5){
 			int ret = 0;
 			for(list_t* node = cmd_head.head; node != NULL;){
 				cmd_node_t* cmd_node = (cmd_node_t*)((void*)node

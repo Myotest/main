@@ -163,7 +163,7 @@ static uint16_t MatchFreq(sensor_handle_t* phy_sensor, uint16_t freq)
 
 		phy_sensor_query_odr_value(phy_sensor->ptr, 1, &min_freq);
 
-		for(int i = 1; freq * i <= 2000; i++){
+		for(int i = 1; freq * i <= 10000; i++){
 			gap_flag = 0;
 			phy_sensor_query_odr_value(phy_sensor->ptr, freq * i, &ret_freq);
 
@@ -248,7 +248,8 @@ static void ResetPhySensorList(void)
 			- offsetof(sensor_handle_t, links.poll.poll_active_link));
 		phy_sensor->stat_flag &= ~ON;
 		phy_sensor->idle_ref = 0;
-		phy_sensor->pi = 0;
+		phy_sensor->pi = phy_sensor->npp = 0;
+		phy_sensor->freq = 0;
 		phy_sensor->fifo_use_flag = phy_sensor->fifo_share_done_flag = 0;
 		phy_sensor->dirty = 1;
 	}
@@ -342,7 +343,7 @@ void RefleshSensorCore(void)
 	ResetPhySensorList();
 	for(list_t* node = feed_list.head; node != NULL; node = node->next){
 		feed_general_t* feed = (feed_general_t*)node;
-		if((feed->stat_flag & ON) != 0){
+		if((feed->stat_flag & ON) != 0 && ((feed->stat_flag & IDLE) == 0 || (feed->stat_flag & WAKE_UP_CLEAR_FIFO) != 0)){
 			suspend_flag++;
 			for(int i = 0; i < feed->demand_length; i++){
 				sensor_data_demand_t* demand = &(feed->demand[i]);
@@ -356,7 +357,6 @@ void RefleshSensorCore(void)
 								uint16_t temp_freq = MatchFreq(phy_sensor, demand->freq * 10);
 								phy_sensor->freq = GetCommonMultiple(temp_freq, phy_sensor->freq);
 							}
-
 							if(phy_sensor->pi == 0)
 								phy_sensor->pi = demand->rt;
 							else
@@ -367,7 +367,6 @@ void RefleshSensorCore(void)
 							if(feed->type == BASIC_ALGO_RAWDATA &&
 								(demand->type == SENSOR_ACCELEROMETER || demand->type == SENSOR_GYROSCOPE))
 								raw_data_dump_flag++;
-
 						}else{
 							if(phy_sensor->freq == 0)
 								phy_sensor->freq = demand->freq * 10;
@@ -435,8 +434,7 @@ void RefleshSensorCore(void)
 		if(phy_sensor->fifo_length > 0){
 			uint16_t temp_freq = MatchFreq(phy_sensor, phy_sensor->freq);
 			//set odr to fifo phy_sensor
-			if(temp_freq != GetSensSamplingTime(phy_sensor))
-				SetSensSamplingTime(phy_sensor, temp_freq);
+			SetSensSamplingTime(phy_sensor, temp_freq);
 		}else{
 			phy_sensor->pi = (float)1000 * 10 / phy_sensor->freq;
 		}
@@ -452,7 +450,6 @@ void RefleshSensorCore(void)
 			if(phy_sensor->fifo_share_bitmap != 0 && phy_sensor->fifo_share_done_flag == 0){
 				list_t* share_list_head = &phy_sensor->fifo_share_link;
 				float mid_value = 0;
-
 				do{
 					sensor_handle_t* phy_sensor_node = (sensor_handle_t*)((void*)share_list_head
 						- offsetof(sensor_handle_t, fifo_share_link));
@@ -496,7 +493,7 @@ void RefleshSensorCore(void)
 	//alloc sensor data match buffer to every demand of feed
 	for(list_t* node = feed_list.head; node != NULL; node = node->next){
 		feed_general_t* feed = (feed_general_t*)node;
-		if((feed->stat_flag & ON) != 0){
+		if((feed->stat_flag & ON) != 0 && ((feed->stat_flag & IDLE) == 0 || (feed->stat_flag & WAKE_UP_CLEAR_FIFO) != 0)){
 			sensor_data_demand_t* demand = feed->demand;
 			uint8_t demand_length = feed->demand_length;
 			int ignore_flag = 0;
