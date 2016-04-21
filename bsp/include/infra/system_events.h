@@ -76,6 +76,8 @@
 #define SYSTEM_EVENT_TYPE_BLE_CONN    0x7   /*!< BLE connected event identifier*/
 #define SYSTEM_EVENT_TYPE_WORN        0x8   /*!< Worn event identifier*/
 #define SYSTEM_EVENT_TYPE_NFC         0x9   /*!< Nfc reader event identifier*/
+                                            /* Align with v4: 0xa is defined*/
+#define SYSTEM_EVENT_TYPE_BUTTON      0xb   /*!< Button event identifier*/
 
 /** Start of the project-specific system event range */
 #define SYSTEM_EVENT_USER_RANGE_START 0x100 /*!< Project specific events starts with id 0x100 */
@@ -168,6 +170,13 @@ struct event_data_nfc_reader_detected {
 	uint32_t deactivation_reason;
 };
 
+
+struct event_data_button {
+	uint8_t button_id;
+	uint8_t event;
+	uint32_t param;
+};
+
 /**
  * Event header
  * This structure is common to all system events. The type field allows to know
@@ -197,6 +206,7 @@ struct system_event {
 		struct event_data_ble_conn ble_conn;
 		struct event_data_worn worn;
 		struct event_data_nfc_reader_detected nfc;
+		struct event_data_button button;
 		char user;
 	} event_data;          /* !< Event data */
 };
@@ -296,6 +306,15 @@ void system_event_push_worn(bool data);
  * @param data Information if NFC reader is active or not.
  */
 void system_event_push_nfc_reader_detected(bool data);
+
+/**
+ * Push a button event system event.
+ *
+ * @param button_id the button identifier
+ * @param event the event that happened on this button.
+ * @param param the parameter specific to the event.
+ */
+void system_event_push_button(uint8_t button_id, uint8_t event, uint32_t param);
 
 /** @} */
 #endif

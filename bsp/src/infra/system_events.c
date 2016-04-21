@@ -311,6 +311,18 @@ void system_event_push_nfc_reader_detected(bool data)
 	system_event_push(&evt);
 }
 
+void system_event_push_button(uint8_t button_id, uint8_t event, uint32_t param)
+{
+	struct system_event evt;
+
+	system_event_fill_header(&evt, SYSTEM_EVENT_TYPE_BUTTON);
+	evt.event_data.button.button_id = button_id;
+	evt.event_data.button.event = event;
+	evt.event_data.button.param = param;
+	system_event_push(&evt);
+}
+
+
 #ifdef CONFIG_SYSTEM_EVENTS_TCMD
 void __attribute__((weak)) project_dump_event(struct system_event *	event,
 					      struct tcmd_handler_ctx * ctx)
@@ -329,7 +341,8 @@ void dump_events(int argc, char **argv, struct tcmd_handler_ctx *ctx)
 		"BLE_PAIRING",
 		"BLE_CONN",
 		"WORN",
-		"NFC_READER"
+		"NFC_READER",
+		"BUTTON",
 	};
 
 	struct system_event *evt;
@@ -396,6 +409,13 @@ void dump_events(int argc, char **argv, struct tcmd_handler_ctx *ctx)
 					case SYSTEM_EVENT_TYPE_NFC:
 						snprintf(append, TMP_BUF_SZ-(append-buf),
 								" nfc reader: %d", evt->event_data.nfc.is_active);
+					break;
+					case SYSTEM_EVENT_TYPE_BUTTON:
+						snprintf(append, TMP_BUF_SZ-(append-buf),
+								" button: %d event [%x, %d]",
+								evt->event_data.button.button_id,
+								evt->event_data.button.event,
+								evt->event_data.button.param);
 					break;
 				}
 				TCMD_RSP_PROVISIONAL(ctx, buf);

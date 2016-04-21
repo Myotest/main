@@ -46,6 +46,9 @@
 #if defined(CONFIG_UI_SERVICE_IMPL_BUTTON) && defined(CONFIG_BUTTON_FEEDBACK)
 #include "util/workqueue.h"
 #endif
+#ifdef CONFIG_SYSTEM_EVENTS
+#include "infra/system_events.h"
+#endif
 
 /* FIXME UI service should include a user config header which resolves
  * the right led/haptic driver header */
@@ -451,7 +454,9 @@ send_event:
 	broadcast_evt->btn_evt.btn = button_id;
 	broadcast_evt->btn_evt.param = param;
 	broadcast_evt->btn_evt.header.m.len = sizeof(*broadcast_evt);
-
+#ifdef CONFIG_SYSTEM_EVENTS
+	system_event_push_button(button_id, event, param);
+#endif
 	cfw_send_event((struct cfw_message *)broadcast_evt);
 	/* Message cloned by the framework. Can be deleted now. */
 	cfw_msg_free((struct cfw_message *)broadcast_evt);
