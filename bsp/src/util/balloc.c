@@ -497,6 +497,7 @@ OS_ERR_TYPE bfree(void *buffer)
 {
 	OS_ERR_TYPE err = E_OS_ERR;
 	uint8_t poolIdx;
+	unsigned int imask;
 
 	/* find which pool the buffer was allocated from */
 	poolIdx = 0;
@@ -504,6 +505,7 @@ OS_ERR_TYPE bfree(void *buffer)
 		/* check if buffer is within mpool[poolIdx] */
 		if (((uint32_t)buffer >= mpool[poolIdx].start) &&
 		    ((uint32_t)buffer < mpool[poolIdx].end)) {
+			imask = irq_lock();
 			if (false != memblock_used(poolIdx, buffer)) {
 				memblock_free(poolIdx, buffer);
 				err = E_OS_OK;
@@ -515,6 +517,7 @@ OS_ERR_TYPE bfree(void *buffer)
 					"ERR: memory_free: buffer %p is already free\n",
 					buffer);
 			}
+			irq_unlock(imask);
 			buffer = NULL;  /* buffer was found in the pools, end the loop */
 		} else {                /* buffer does not belong to mpool[poolIdx], go to the next one */
 			poolIdx++;
