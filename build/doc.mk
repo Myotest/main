@@ -75,10 +75,9 @@ doc:
 	@echo "Type \"make doc_view\" to view it in your web browser"
 
 doc_package: doc
-	@rm -rf $(PUB)/documentation
-	@mkdir -p $(PUB)/documentation
-	mv $(OUT)/doc/* $(PUB)/documentation/
-	find $(PUB)/documentation/ -name *.md5 -exec rm -rf {} \;
+	@mkdir -p $(PUB)
+	@cd $(OUT)/doc/html && tar cvfz $(PUB)/documentation.tgz .
+	@echo "Documentation archived as $(PUB)/documentation.tgz"
 
 doc_view: doc
 	@xdg-open $(OUT)/doc/html/index.html
