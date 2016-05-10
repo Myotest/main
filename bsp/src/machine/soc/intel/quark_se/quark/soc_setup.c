@@ -144,7 +144,7 @@ void notrace mbxIsr(int param)
 				ipc_callbacks[i]();
 			}
 			/* Acknowledge ipc interrupt */
-			if (ipc_channels[i] != IPC_SS_QRK_ACK)
+			if (ipc_channels[i] == IPC_SS_QRK_ASYNC)
 				MBX_STS(ipc_channels[i]) = sts;
 		}
 	} while (MBX_CHALL_STS & 0x0500);
