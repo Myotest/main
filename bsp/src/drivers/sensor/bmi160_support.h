@@ -115,10 +115,9 @@
 #define BMI160_ENABLE_MAG 0
 #endif
 
-#define BMI160_MOTION_DETECTION_DEFAULT_ODR_HZ 100
-#define BMI160_ANY_MOTION_MIN_ODR_HZ    25
-#define BMI160_NO_MOTION_MIN_ODR_HZ     25
-#define BMI160_TAPPING_MIN_ODR_HZ       100
+#define BMI160_ANY_MOTION_MIN_ODR_X10    250
+#define BMI160_NO_MOTION_MIN_ODR_X10     250
+#define BMI160_TAPPING_MIN_ODR_X10       1000
 
 #ifdef CONFIG_ARC_DRIVER_TESTS
 #define BMI160_SUPPORT_FIFO_INT_DATA_REPORT 1
@@ -652,45 +651,11 @@ DRIVER_API_RC bmi160_set_accel_range(uint8_t v_range_u8);
 DRIVER_API_RC bmi160_read_accel_xyz(struct bmi160_s16_xyz_t *	data,
 				    uint8_t			sensor_type);
 
+int bmi160_accel_sampling_in_idle(void);
+
 #define bmi160_delay_ms sensor_delay_ms
 
 struct bmi160_rt_t *bmi160_get_ptr(void);
-
-/* When in idle, accel sampling @100Hz, AVG=1 */
-static inline int bmi160_accel_sampling_in_idle(void)
-{
-	struct bmi160_rt_t *bmi160_rt = bmi160_get_ptr();
-	uint8_t accel_config_nomotion = BMI160_ACCEL_OUTPUT_DATA_RATE_100HZ;
-
-	accel_config_nomotion |= 0x80 |
-				 ((CONFIG_BMI160_LOWPOWER_AVG_NOMOTION) << 4);
-	bmi160_int_disable(BMI160_INT_SET_1, BMI160_OFFSET_FIFO_FULL, 0);
-	bmi160_rt->motion_state = 0;
-	return bmi160_set_user_sensor_config(BMI160_SENSOR_ACCEL,
-					     BMI160_POWER_LOWPOWER, 1,
-					     accel_config_nomotion);
-}
-
-static inline int bmi160_prepare_fifo_read(void)
-{
-	struct bmi160_rt_t *bmi160_rt = bmi160_get_ptr();
-
-	return bmi160_set_user_sensor_config(
-		       BMI160_SENSOR_ACCEL, BMI160_POWER_NORMAL, 1,
-		       (bmi160_rt->accel_config | 0x80 |
-			(BMI160_ACCEL_NORMAL_AVG4 << 4)));
-}
-
-static inline int bmi160_after_fifo_read(void)
-{
-	struct bmi160_rt_t *bmi160_rt = bmi160_get_ptr();
-
-	return bmi160_set_user_sensor_config(
-		       BMI160_SENSOR_ACCEL, BMI160_POWER_LOWPOWER, 1,
-		       (bmi160_rt->accel_config | 0x80 |
-			(bmi160_rt->undersampling_avg <<
-			 4)));
-}
 
 #define DEBUG_BMI160 0
 #if DEBUG_BMI160

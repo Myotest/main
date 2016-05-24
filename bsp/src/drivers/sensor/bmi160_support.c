@@ -288,6 +288,14 @@ DRIVER_API_RC bmi160_set_user_sensor_config(uint8_t type, uint8_t powermode,
 	reg = BMI160_USER_ACCEL_CONFIG_ADDR + type * 2;
 
 	if (change_bwp_odr) {
+		/* if ord of Accel is >=400Hz, Accel doesn't enter into lowpower mode */
+		if ((type ==
+		     BMI160_SENSOR_ACCEL) && (bwp_odr & 0x0F) >=
+		    BMI160_ACCEL_OUTPUT_DATA_RATE_400HZ) {
+			bwp_odr &= 0x0F;
+			bwp_odr |= (BMI160_ACCEL_NORMAL_AVG4 << 4);
+			powermode = BMI160_POWER_NORMAL;
+		}
 		if (bwp_odr != sensor_user_config[type]) {
 			sensor_user_config[type] = bwp_odr;
 			com_rslt += bmi160_write_reg(reg, &bwp_odr);
@@ -562,6 +570,11 @@ static DRIVER_API_RC bmi160_support_init(struct bmi160_rt_t *bmi160_rt)
 
 	bmi160_change_sensor_powermode(BMI160_SENSOR_ACCEL, BMI160_POWER_NORMAL);
 
+	/* Only when no motion interrupt received, motion_state switch to 0
+	 * If no motion interrupt not enabled, motion_state is 1
+	 */
+	bmi160_rt->motion_state = 1;
+
 	com_rslt += bmi160_change_accel_sensing_range(
 		CONFIG_BMI160_DEFAULT_ACCEL_RANGE);
 	com_rslt += bmi160_change_gyro_sensing_range(
@@ -622,7 +635,7 @@ static DRIVER_API_RC bmi160_interrupt_configuration(uint8_t int_config)
 #endif
 
 	/* latch the interrupt signals and flags */
-	ctrl = BMI160_LATCH_DUR_10_MILLI_SEC;
+	ctrl = BMI160_LATCH_DUR_20_MILLI_SEC;
 	bmi160_write_reg(BMI160_USER_INTR_LATCH_ADDR, &ctrl);
 
 	uint8_t tap_ctrl = 0xC6; /* Double Tapping configuration */
@@ -948,6 +961,65 @@ DRIVER_API_RC bmi160_generic_register_unregister_cb(read_data	callback,
 	return com_rslt;
 }
 
+static uint16_t bmi160_accel_odr_adjust(uint16_t odr_x10)
+{
+	uint16_t odr_x10_adjust = 0;
+
+	/* There may be 4 factors to determin the final ODR */
+#ifdef CONFIG_BMI160_ANY_MOTION
+	if (p_bmi160_rt->read_callbacks[BMI160_SENSOR_ANY_MOTION])
+		if (odr_x10_adjust < BMI160_ANY_MOTION_MIN_ODR_X10)
+			odr_x10_adjust = BMI160_ANY_MOTION_MIN_ODR_X10;
+#endif
+#ifdef CONFIG_BMI160_NO_MOTION
+	if (p_bmi160_rt->read_callbacks[BMI160_SENSOR_NO_MOTION])
+		if (odr_x10_adjust < BMI160_NO_MOTION_MIN_ODR_X10)
+			odr_x10_adjust = BMI160_NO_MOTION_MIN_ODR_X10;
+#endif
+#ifdef CONFIG_BMI160_DOUBLE_TAP
+	if (p_bmi160_rt->read_callbacks[BMI160_SENSOR_DOUBLE_TAPPING])
+		if (odr_x10_adjust < BMI160_TAPPING_MIN_ODR_X10)
+			odr_x10_adjust = BMI160_TAPPING_MIN_ODR_X10;
+#endif
+	if (odr_x10_adjust < odr_x10)
+		odr_x10_adjust = odr_x10;
+
+	return odr_x10_adjust;
+}
+
+uint8_t bmi160_odr_convert(uint16_t odr_x10)
+{
+	uint8_t odr_reg = 0xFF;
+
+	switch (odr_x10) {
+	case 125:
+		odr_reg = BMI160_ACCEL_OUTPUT_DATA_RATE_12_5HZ;
+		break;
+	case 250:
+		odr_reg = BMI160_ACCEL_OUTPUT_DATA_RATE_25HZ;
+		break;
+	case 500:
+		odr_reg = BMI160_ACCEL_OUTPUT_DATA_RATE_50HZ;
+		break;
+	case 1000:
+		odr_reg = BMI160_ACCEL_OUTPUT_DATA_RATE_100HZ;
+		break;
+	case 2000:
+		odr_reg = BMI160_ACCEL_OUTPUT_DATA_RATE_200HZ;
+		break;
+	case 4000:
+		odr_reg = BMI160_ACCEL_OUTPUT_DATA_RATE_400HZ;
+		break;
+	case 8000:
+		odr_reg = BMI160_ACCEL_OUTPUT_DATA_RATE_800HZ;
+		break;
+	case 16000:
+		odr_reg = BMI160_ACCEL_OUTPUT_DATA_RATE_1600HZ;
+		break;
+	}
+	return odr_reg;
+}
+
 DRIVER_API_RC bmi160_sensor_query_rate(uint16_t		odr_target,
 				       uint16_t *	odr_support,
 				       uint8_t		sensor_type)
@@ -976,18 +1048,8 @@ DRIVER_API_RC bmi160_sensor_query_rate(uint16_t		odr_target,
 	}
 	*odr_support = odr;
 
-	if (sensor_type == BMI160_SENSOR_ACCEL) {
-		if (p_bmi160_rt->read_callbacks[BMI160_SENSOR_ANY_MOTION] ||
-		    p_bmi160_rt->read_callbacks[BMI160_SENSOR_NO_MOTION]) {
-			if (*odr_support < BMI160_ANY_MOTION_MIN_ODR_HZ)
-				*odr_support = BMI160_ANY_MOTION_MIN_ODR_HZ;
-		}
-		if (p_bmi160_rt->read_callbacks[BMI160_SENSOR_DOUBLE_TAPPING])
-		{
-			if (*odr_support < BMI160_TAPPING_MIN_ODR_HZ)
-				*odr_support = BMI160_TAPPING_MIN_ODR_HZ;
-		}
-	}
+	if (sensor_type == BMI160_SENSOR_ACCEL)
+		*odr_support = bmi160_accel_odr_adjust(odr);
 
 #if DEBUG_BMI160
 	if (*odr_support != odr_target) {
@@ -1010,61 +1072,26 @@ DRIVER_API_RC bmi160_sensor_set_rate(uint16_t odr_hz_x10, uint8_t sensor_type)
 	if (sensor_type >= BMI160_SENSOR_COUNT)
 		return DRV_RC_FAIL;
 
+	if (sensor_type == BMI160_SENSOR_ACCEL)
+		odr_hz_x10 = bmi160_accel_odr_adjust(odr_hz_x10);
+
 	if (odr_hz_x10 == p_bmi160_rt->sensor_odr[sensor_type])
 		return DRV_RC_OK;
 
 	if (odr_hz_x10 == 0) {
 		/* disable the sensor if set output data rate to 0 */
 		if (p_bmi160_rt->sensor_odr[sensor_type]) {
-			/* If accel will be set to 0, but motion is need, do not suspend accel */
-			if (sensor_type == BMI160_SENSOR_ACCEL &&
-			    (p_bmi160_rt->read_callbacks[
-				     BMI160_SENSOR_ANY_MOTION] ||
-			     p_bmi160_rt->read_callbacks[
-				     BMI160_SENSOR_NO_MOTION] ||
-			     p_bmi160_rt->read_callbacks[
-				     BMI160_SENSOR_DOUBLE_TAPPING]))
-				return DRV_RC_OK;
-
 			if (bmi160_change_sensor_powermode(sensor_type,
 							   BMI160_POWER_SUSPEND))
 				return DRV_RC_FAIL;
 		}
 		p_bmi160_rt->sensor_odr[sensor_type] = 0;
-		if (sensor_type == BMI160_SENSOR_ACCEL)
-			p_bmi160_rt->accel_config = 0;
 		return DRV_RC_OK;
 	}
 
-	/* The MACRO value is the same of ACCEL/GYRO/MAG @ same rate */
-	switch (odr_hz_x10) {
-	case 125:
-		v_output_data_rate_u8 = BMI160_ACCEL_OUTPUT_DATA_RATE_12_5HZ;
-		break;
-	case 250:
-		v_output_data_rate_u8 = BMI160_ACCEL_OUTPUT_DATA_RATE_25HZ;
-		break;
-	case 500:
-		v_output_data_rate_u8 = BMI160_ACCEL_OUTPUT_DATA_RATE_50HZ;
-		break;
-	case 1000:
-		v_output_data_rate_u8 = BMI160_ACCEL_OUTPUT_DATA_RATE_100HZ;
-		break;
-	case 2000:
-		v_output_data_rate_u8 = BMI160_ACCEL_OUTPUT_DATA_RATE_200HZ;
-		break;
-	case 4000:
-		v_output_data_rate_u8 = BMI160_ACCEL_OUTPUT_DATA_RATE_400HZ;
-		break;
-	case 8000:
-		v_output_data_rate_u8 = BMI160_ACCEL_OUTPUT_DATA_RATE_800HZ;
-		break;
-	case 16000:
-		v_output_data_rate_u8 = BMI160_ACCEL_OUTPUT_DATA_RATE_1600HZ;
-		break;
-	default:
+	v_output_data_rate_u8 = bmi160_odr_convert(odr_hz_x10);
+	if (v_output_data_rate_u8 == 0xFF)
 		goto ODR_NOT_SUPPORT;
-	}
 
 	powermode = BMI160_POWER_NORMAL;
 
@@ -1073,7 +1100,8 @@ DRIVER_API_RC bmi160_sensor_set_rate(uint16_t odr_hz_x10, uint8_t sensor_type)
 		p_bmi160_rt->accel_config = v_output_data_rate_u8;
 		/* Default will set accel to low power mode */
 		powermode = BMI160_POWER_LOWPOWER;
-		v_output_data_rate_u8 |= ((p_bmi160_rt->undersampling_avg) << 4);
+		v_output_data_rate_u8 |= 0x80 |
+					 ((p_bmi160_rt->undersampling_avg) << 4);
 	} else if (sensor_type == BMI160_SENSOR_GYRO) {
 		if (odr_hz_x10 < 250)
 			goto ODR_NOT_SUPPORT;
@@ -1116,6 +1144,7 @@ DRIVER_API_RC bmi160_fifo_enable(uint8_t sensor_type, uint8_t *buffer,
 	p_bmi160_rt->fifo_en |= (1 << sensor_type);
 	p_bmi160_rt->fifo_ubuffer[sensor_type] = buffer;
 	p_bmi160_rt->fifo_ubuffer_len[sensor_type] = buffer_len;
+	p_bmi160_rt->fifo_ubuffer_ptr[sensor_type] = 0;
 
 	fifo_config1 |= fifo_en_mask;
 
@@ -1342,6 +1371,75 @@ static int parse_data_from_fifo(uint8_t *buffer, uint16_t frame_cnt_max,
 	return last_stat;
 }
 
+/* When in idle, accel sampling @100Hz, AVG=1 */
+int bmi160_accel_sampling_in_idle(void)
+{
+	struct bmi160_rt_t *bmi160_rt = bmi160_get_ptr();
+	uint8_t accel_odr_hw;
+
+	bmi160_rt->motion_state = 0;
+
+	if (bmi160_rt->sensor_odr[BMI160_SENSOR_ACCEL] == 0)
+		return DRV_RC_OK;
+
+	accel_odr_hw =
+		bmi160_odr_convert(bmi160_rt->sensor_odr[BMI160_SENSOR_ACCEL]);
+
+	bmi160_int_disable(BMI160_INT_SET_1, BMI160_OFFSET_FIFO_FULL, 0);
+	return bmi160_set_user_sensor_config(BMI160_SENSOR_ACCEL,
+					     BMI160_POWER_LOWPOWER, 1,
+					     accel_odr_hw | 0x80 |
+					     (
+						     CONFIG_BMI160_LOWPOWER_AVG_NOMOTION
+						     << 4));
+}
+
+static int bmi160_prepare_fifo_read(void)
+{
+	struct bmi160_rt_t *bmi160_rt = bmi160_get_ptr();
+	uint8_t accel_odr_hw;
+
+	if (bmi160_rt->sensor_odr[BMI160_SENSOR_ACCEL] == 0) {
+		if (bmi160_rt->sensor_odr[BMI160_SENSOR_GYRO] != 0
+#if BMI160_ENABLE_MAG
+		    || bmi160_rt->sensor_odr[BMI160_SENSOR_MAG] != 0
+#endif
+		    )
+			return DRV_RC_OK;
+		pr_info(LOG_MODULE_BMI160, "FIFO not readable");
+		return DRV_RC_FAIL;
+	}
+
+	accel_odr_hw =
+		bmi160_odr_convert(bmi160_rt->sensor_odr[BMI160_SENSOR_ACCEL]);
+	return bmi160_set_user_sensor_config(
+		       BMI160_SENSOR_ACCEL, BMI160_POWER_NORMAL, 1,
+		       (accel_odr_hw | 0x80 |
+			(BMI160_ACCEL_NORMAL_AVG4 << 4)));
+}
+
+static int bmi160_after_fifo_read(void)
+{
+	struct bmi160_rt_t *bmi160_rt = bmi160_get_ptr();
+	uint8_t accel_odr_hw;
+	uint8_t avg;
+
+	if (bmi160_rt->sensor_odr[BMI160_SENSOR_ACCEL] == 0)
+		return DRV_RC_OK;
+
+	accel_odr_hw =
+		bmi160_odr_convert(bmi160_rt->sensor_odr[BMI160_SENSOR_ACCEL]);
+
+	if (bmi160_rt->motion_state)
+		avg = bmi160_rt->undersampling_avg;
+	else
+		avg = CONFIG_BMI160_LOWPOWER_AVG_NOMOTION;
+
+	return bmi160_set_user_sensor_config(
+		       BMI160_SENSOR_ACCEL, BMI160_POWER_LOWPOWER, 1,
+		       (accel_odr_hw | 0x80 | (avg << 4)));
+}
+
 DRIVER_API_RC bmi160_read_fifo_data(uint8_t *buffer, uint16_t buffer_len,
 				    uint8_t *actual_frame, uint8_t type,
 				    bool fetch_new_data)
@@ -1422,7 +1520,7 @@ DRIVER_API_RC bmi160_read_fifo_data(uint8_t *buffer, uint16_t buffer_len,
 				data_usedful +=
 					p_bmi160_rt->sensor_odr[i] *
 					(bmi160_raw_data_size[i] + 1) *
-					read_fifo_time_diff / 10000;
+					(read_fifo_time_diff + 20) / 10000;
 			}
 
 		if (fifo_len > data_reserve + data_usedful)

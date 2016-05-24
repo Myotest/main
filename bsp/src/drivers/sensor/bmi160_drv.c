@@ -143,8 +143,15 @@ int bmi160_drv_generic_set_property(struct phy_sensor_t *sensor, uint8_t type,
 		bmi160_update_fifo_watermark();
 		break;
 	case SENSOR_PROP_SAMPLING_IN_IDLE:
-		if (sensor->type == SENSOR_ACCELEROMETER)
+		if (sensor->type == SENSOR_ACCELEROMETER) {
+			phy_sensor_sample_idle_t *idle =
+				(phy_sensor_sample_idle_t *)value;
+			phy_sensor_set_odr_value(sensor, idle->odr_x10);
 			bmi160_accel_sampling_in_idle();
+			pr_debug(LOG_MODULE_BMI160,
+				 "sampling in idle @%d/10 Hz",
+				 idle->odr_x10);
+		}
 		break;
 	case SENSOR_PROP_DRIVER_SPECIFIC:
 		sub_type = *((uint8_t *)value);
@@ -285,6 +292,9 @@ struct bmi160_sensor_drv_t bmi160_gyro = {
 	.bmi160_type = BMI160_SENSOR_GYRO,
 };
 
+#if defined(CONFIG_BMI160_ANY_MOTION) || \
+	defined(CONFIG_BMI160_NO_MOTION) || \
+	defined(CONFIG_BMI160_DOUBLE_TAP)
 static int generic_event_enable_int_mode(struct phy_sensor_t *	sensor,
 					 generic_read_data_cb	callback,
 					 void *			priv_data,
@@ -292,56 +302,33 @@ static int generic_event_enable_int_mode(struct phy_sensor_t *	sensor,
 					 bool			enable)
 {
 	int ret = 0;
-	struct bmi160_rt_t *p_bmi160_rt = bmi160_get_ptr();
-	uint16_t min_odr_x10;
 	uint8_t sensor_type = 0;
-	uint8_t score = 0;
 
 #ifdef CONFIG_BMI160_ANY_MOTION
 	if (sensor->type == SENSOR_ANY_MOTION) {
 		sensor_type = BMI160_SENSOR_ANY_MOTION;
-		min_odr_x10 = BMI160_ANY_MOTION_MIN_ODR_HZ * 10;
 	} else
 #endif
 #ifdef CONFIG_BMI160_NO_MOTION
 	if (sensor->type == SENSOR_NO_MOTION) {
 		sensor_type = BMI160_SENSOR_NO_MOTION;
-		min_odr_x10 = BMI160_NO_MOTION_MIN_ODR_HZ * 10;
 	} else
 #endif
 #ifdef CONFIG_BMI160_DOUBLE_TAP
 	if (sensor->type == SENSOR_TAPPING) {
 		sensor_type = BMI160_SENSOR_DOUBLE_TAPPING;
-		min_odr_x10 = BMI160_TAPPING_MIN_ODR_HZ * 10;
 	} else
 #endif
 	return DRV_RC_INVALID_CONFIG;
 
-#if 0
-	if (min_odr_x10 < sample_rate_x10)
-		min_odr_x10 = sample_rate_x10;
-#endif
-
-	if (enable) {
-		if (bmi160_accel.sensor.odr_hz_x10 < min_odr_x10)
-			ret += bmi160_drv_generic_set_odr(&bmi160_accel.sensor,
-							  min_odr_x10);
-	} else if (bmi160_accel.sensor.odr_hz_x10 == 0) {
-		/* disable motion event when accel raw sensor data not needed */
-		for (int i = BMI160_SENSOR_COUNT;
-		     i < BMI160_SENSOR_ALL_COUNT;
-		     i++)
-			if (p_bmi160_rt->read_callbacks[i])
-				score++;
-		if (score == 1 && p_bmi160_rt->read_callbacks[sensor_type])
-			ret += bmi160_drv_generic_set_odr(&bmi160_accel.sensor,
-							  0);
-	}
-
 	ret += bmi160_generic_register_unregister_cb(callback, priv_data,
 						     sensor_type);
+
+	ret += bmi160_drv_generic_set_odr(&bmi160_accel.sensor,
+					  bmi160_accel.sensor.odr_hz_x10);
 	return ret;
 }
+#endif
 
 #ifdef CONFIG_BMI160_ANY_MOTION
 /* this driver using bmi160 accelerometer sensor for any motion detection

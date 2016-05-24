@@ -243,6 +243,11 @@ typedef struct {
 	void *priv_data;
 }phy_sensor_watermark_property_t;
 
+/** sensor sample in idle property */
+typedef struct {
+	uint16_t odr_x10;   /**< ODR */
+}phy_sensor_sample_idle_t;
+
 /* Sensor specific data structures */
 /* BMI160 specific data structures */
 /**
