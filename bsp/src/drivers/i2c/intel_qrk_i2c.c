@@ -209,9 +209,9 @@ void isr_i2c_intr(i2c_internal_data_t *dev)
 		soc_recv_data(dev);
 		soc_end_data_transfer(dev);
 		MMIO_REG_VAL_FROM_BASE(dev->BASE, IC_CLR_INTR); /* Clear all interrupts */
-	}
-	if (IC_MASTER_EN_BIT ==
-	    (MMIO_REG_VAL_FROM_BASE(dev->BASE, IC_CON) & IC_MASTER_EN_BIT)) {               /* Are we a master device? */
+	} else if (IC_MASTER_EN_BIT ==
+		   (MMIO_REG_VAL_FROM_BASE(dev->BASE,
+					   IC_CON) & IC_MASTER_EN_BIT)) {
 		/* Master TX */
 
 		if (my_intr & TX_EMPTY) {
