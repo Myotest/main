@@ -364,24 +364,20 @@ static void execute_callback(T_TIMER_LIST_ELT *expiredTimer)
 		(uint32_t)expiredTimer,
 		get_uptime_ms(), expiredTimer->desc.expiration);
 #endif
+	int flags = irq_lock();
 
 	/* if the timer was not stopped by its own callback */
 	if (E_TIMER_RUNNING == expiredTimer->desc.status) {
-		/* remove the timer */
-		disable_scheduling();
 		remove_timer(expiredTimer);
-		enable_scheduling();
-
 		/* add it again if repeat flag was on */
 		if (expiredTimer->desc.repeat) {
-			disable_scheduling();
 			expiredTimer->desc.expiration = get_uptime_ms() +
 							expiredTimer->desc.
 							delay;
 			add_timer(expiredTimer);
-			enable_scheduling();
 		}
 	}
+	irq_unlock(flags);
 
 	/* call callback back */
 	if (NULL != expiredTimer->desc.callback) {
@@ -524,12 +520,13 @@ T_TIMER timer_create(T_ENTRY_POINT callback, void *privData, uint32_t delay,
 
 				/* insert timer in the list of active timers */
 				if (startup) {
+					int flags;
 					timer->desc.expiration =
 						get_uptime_ms() +
 						timer->desc.delay;
-					disable_scheduling();
+					flags = irq_lock();
 					add_timer(timer);
-					enable_scheduling();
+					irq_unlock(flags);
 					if (g_CurrentTimerHead == timer) {
 						/* new timer is the next to expire, unblock timer_task to assess the change */
 						signal_timer_task();
@@ -573,6 +570,7 @@ void timer_start(T_TIMER tmr, uint32_t delay, OS_ERR_TYPE *err)
 
 	/* if timer is created */
 	if (NULL != timer) {
+		int flags = irq_lock();
 		if (timer->desc.status == E_TIMER_READY) {
 			/* if timer parameter are valid */
 			if ((NULL != timer->desc.callback) && (0 < delay)) {
@@ -583,11 +581,10 @@ void timer_start(T_TIMER tmr, uint32_t delay, OS_ERR_TYPE *err)
 				timer->desc.delay = delay;
 				timer->desc.expiration = get_uptime_ms() +
 							 timer->desc.delay;
-				disable_scheduling();
 				/* add the timer */
 				add_timer(timer);
 
-				enable_scheduling();
+				irq_unlock(flags);
 				/* new timer is the next to expire, unblock timer_task to assess the change */
 				if (g_CurrentTimerHead == timer) {
 					signal_timer_task();
@@ -597,6 +594,7 @@ void timer_start(T_TIMER tmr, uint32_t delay, OS_ERR_TYPE *err)
 				localErr = E_OS_ERR;
 			}
 		} else if (timer->desc.status == E_TIMER_RUNNING) {
+			irq_unlock(flags);
 			localErr = E_OS_ERR_BUSY;
 			if (err != NULL)
 				*err = localErr;
@@ -625,6 +623,7 @@ void timer_stop(T_TIMER tmr)
 	bool doSignal = false;
 
 	if (NULL != timer) {
+		int flags = irq_lock();
 		/* if timer is active */
 		if (timer->desc.status == E_TIMER_RUNNING) {
 #ifdef __DEBUG_OS_ABSTRACTION_TIMER
@@ -633,7 +632,6 @@ void timer_stop(T_TIMER tmr)
 				(uint32_t)timer);
 #endif
 			/* remove the timer */
-			disable_scheduling();
 
 			if (g_CurrentTimerHead == timer) {
 				doSignal = true;
@@ -641,13 +639,14 @@ void timer_stop(T_TIMER tmr)
 
 			remove_timer(timer);
 
-			enable_scheduling();
+			irq_unlock(flags);
 
 			if (doSignal) {
 				/* the next timer to expire was removed, unblock timer_task to assess the change */
 				signal_timer_task();
 			}
 		} else { /* tmr is not running */
+			irq_unlock(flags);
 		}
 	} else { /* tmr is not a timer from g_TimerPool_elements */
 		panic(E_OS_ERR);
@@ -668,9 +667,11 @@ void timer_delete(T_TIMER tmr)
 
 	if (NULL != timer) {
 		/* check if timer is running and stop it */
+		int flags = irq_lock();
 		if (timer->desc.status == E_TIMER_RUNNING) {
 			timer_stop(timer);
 		}
+		irq_unlock(flags);
 
 #ifdef __DEBUG_OS_ABSTRACTION_TIMER
 		_log("\nINFO : timer_delete : deleting  timer at addr = 0x%x",
