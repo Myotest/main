@@ -139,7 +139,7 @@ $(1)_$(2)_dist: $(1)_$(2)
 	$$(AT)cp $$($(1)_$(2)_OUT)/build/$(1).a $$($(1)_$(2)_OUT)/dist/$(1)/$(1)_$(2).a
 	$$(AT)$$(AT)$$(MAKE) -f $(T)/build/cross-wrapper.mk \
 		strip \
-		ARGS="-d $$($(1)_$(2)_OUT)/dist/$(1)/$(1)_$(2).a" \
+		ARGS="--enable-deterministic-archives -d $$($(1)_$(2)_OUT)/dist/$(1)/$(1)_$(2).a" \
 		ARCH=$(2)
 	$$(AT)mkdir -p $$($(1)_$(2)_OUT)/dist/$(1)/
 	$$(AT)$$(foreach path,$$($(1)_$(2)_HEADERS_PATH),\
