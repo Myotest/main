@@ -304,11 +304,11 @@ void soc_resume(void)
 	/* System clock */
 	_sys_clock_driver_init(NULL);
 
-
 	/* Re-connect static irqs */
 	extern void irq_resume();
 	irq_resume();
-
+	extern void rtc_resume(void);
+	rtc_resume();
 	irq_enable(SOC_CMP_INTERRUPT);
 	irq_enable(SOC_MBOX_INTERRUPT);
 }

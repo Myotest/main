@@ -40,6 +40,7 @@
 #include "infra/pm.h"
 #include "drivers/clk_system.h"
 #include "drivers/data_type.h"
+#include "drivers/ioapic.h"
 #include "os/os.h"
 #include "util/assert.h"
 
@@ -56,6 +57,14 @@ struct clk_gate_info_s rtc_clk_gate_info = {
 	.clk_gate_register = PERIPH_CLK_GATE_CTRL,
 	.bits_mask = RTC_CLK_GATE_MASK,
 };
+
+void rtc_resume(void)
+{
+	extern struct device DEVICE_NAME_GET(rtc);
+	IRQ_CONNECT(SOC_RTC_INTERRUPT, ISR_DEFAULT_PRIO, rtc_isr,
+		    DEVICE_GET(rtc), IOAPIC_LEVEL | IOAPIC_HIGH);
+	irq_enable(SOC_RTC_INTERRUPT);
+}
 
 static void qrk_cxxxx_rtc_wakelock_timer_callback(void *data)
 {
@@ -272,7 +281,7 @@ DEVICE_INIT(rtc, RTC_DRV_NAME, &qrk_cxxxx_rtc_init,
 int qrk_cxxxx_rtc_init(struct device *rtc_dev)
 {
 	IRQ_CONNECT(SOC_RTC_INTERRUPT, ISR_DEFAULT_PRIO, rtc_isr,
-		    DEVICE_GET(rtc), 0);
+		    DEVICE_GET(rtc), IOAPIC_LEVEL | IOAPIC_HIGH);
 	irq_enable(SOC_RTC_INTERRUPT);
 	rtc_dev->driver_api = &qrk_cxxxx_rtc_funcs;
 	return 0;
