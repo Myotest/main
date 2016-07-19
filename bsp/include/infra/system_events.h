@@ -33,6 +33,7 @@
 
 #include <stdint.h>
 #include "infra/boot.h"
+#include "infra/xloop.h"
 
 
 /**
@@ -217,6 +218,13 @@ struct system_event {
  */
 void system_events_init(void);
 
+/**
+ * Set the xloop context to execute flash writes in storage context.
+ * In no xloop set, all writes will be done in the calling context.
+ *
+ * @param loop xloop to use for writes
+ */
+void system_event_set_xloop(xloop_t *loop);
 /**
  * Push a system event
  *

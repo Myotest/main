@@ -39,6 +39,7 @@
 #include "infra/version.h"
 #include "util/misc.h"
 #include "util/assert.h"
+#include "infra/xloop.h"
 
 /* SPI flash management */
 #include "cir_storage.h"
@@ -63,6 +64,8 @@
 DEFINE_LOG_MODULE(LOG_MODULE_SYSTEM_EVENTS, "SYEV")
 
 static cir_storage_t * storage = NULL;
+static bool enabled = true;
+static xloop_t *storage_loop = NULL;
 
 static void store_panics(uint32_t);
 
@@ -89,12 +92,43 @@ void __attribute__((weak)) on_system_event_generated(struct system_event *evt)
 {
 }
 
+struct se_job {
+	xloop_job_t j;
+	struct system_event event;
+};
+
+void system_event_set_xloop(xloop_t *loop)
+{
+	storage_loop = loop;
+}
+
+void system_event_write_job(xloop_job_t *job)
+{
+	struct se_job *j = (struct se_job *)job;
+
+	cir_storage_push(storage, (uint8_t *)&j->event);
+	on_system_event_generated(&j->event);
+	bfree(job);
+}
+
 void system_event_push(struct system_event *event)
 {
-	if (storage) {
-		memcpy(event->h.hash, version_header.hash, sizeof(event->h.hash));
-		cir_storage_push(storage, (uint8_t *)event);
-		on_system_event_generated(event);
+	if (storage && enabled) {
+		memcpy(event->h.hash, version_header.hash,
+		       sizeof(event->h.hash));
+		if (storage_loop && storage_loop->queue) {
+			struct se_job *job = (struct se_job *)
+					     balloc(
+				sizeof(struct
+				       se_job),
+				NULL);
+			job->j.run = system_event_write_job;
+			memcpy(&job->event, &event, sizeof(*event));
+			xloop_post_job(storage_loop, &job->j);
+		} else {
+			cir_storage_push(storage, (uint8_t *)event);
+			on_system_event_generated(event);
+		}
 	}
 }
 

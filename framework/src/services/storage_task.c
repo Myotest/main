@@ -33,6 +33,8 @@
 #include "util/assert.h"
 
 #include "os/os.h"
+#include "infra/xloop.h"
+#include "infra/system_events.h"
 #include "cfw/cfw.h"
 #include "services/services_ids.h"
 
@@ -40,6 +42,7 @@
 DEFINE_TASK(TASK_STORAGE, 7, storage_task, 2048, 0);
 
 static T_QUEUE storage_queue;
+xloop_t loop;
 
 /* Storage initialisation */
 void init_storage(void)
@@ -65,4 +68,8 @@ void init_storage(void)
 void storage_task(void)
 {
 	cfw_loop(storage_queue);
+#ifdef CONFIG_SYSTEM_EVENTS
+	system_event_set_xloop(&loop);
+#endif
+	xloop_run(&loop);
 }
