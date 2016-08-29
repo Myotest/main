@@ -377,7 +377,7 @@ void ss_send_scan_rsp_msg_to_clients(
 		p_list = (ss_client_list_t *)p_list->list.next;
 	}
 	if (err == -1) {
-		SS_PRINT_ERR("No client is requesting scan");
+		SS_PRINT_LOG("No client is requesting scan");
 	}
 }
 
@@ -565,7 +565,11 @@ void ss_send_subscribing_evt_msg_to_clients(sensor_service_t sensor_handle,
 		l = (client_arbit_info_list_t *)l->list.next;
 	}
 	if (err == -1) {
-		SS_PRINT_ERR("Arbitration list may be damaged");
+		/* there chances that after sending unsubscribe to sensor core,
+		 * sensor service still received sensor data. This is because
+		 * there's open window between processing the received unsub cmd
+		 * and stopping sending sensor data within open sensor core. */
+		SS_PRINT_LOG("Receive data after sending unsub to sensor core");
 		l =
 			(client_arbit_info_list_t *)p_list->
 			arbit_info_list_header.head;
