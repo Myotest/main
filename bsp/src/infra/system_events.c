@@ -123,7 +123,7 @@ void system_event_push(struct system_event *event)
 				       se_job),
 				NULL);
 			job->j.run = system_event_write_job;
-			memcpy(&job->event, &event, sizeof(*event));
+			memcpy(&job->event, event, sizeof(*event));
 			xloop_post_job(storage_loop, &job->j);
 		} else {
 			cir_storage_push(storage, (uint8_t *)event);
