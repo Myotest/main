@@ -1,3 +1,6 @@
+#define xstr(s) str(s)
+#define str(s) #s
+
 {
  "flash" :  {
   "commands" : [
@@ -62,7 +65,7 @@
     "description": "Backup otp partition"
    },
    {
-       "args" : "--url OPTION_CRASH_REPORT_URL --work-dir ${flashDir} --file ${panic_file} --file ${log_file} --file ${events_file} --file ${ble_core_file} --file ${otp_file} --json ${flashDir}/crash.json --org OPTION_CRASH_REPORT_ORG --project OPTION_CRASH_REPORT_PROJECT --type crash", "timeout" : 30000,
+       "args" : xstr(--url OPTION_CRASH_REPORT_URL --work-dir ${flashDir} --file ${panic_file} --file ${log_file} --file ${events_file} --file ${ble_core_file} --file ${otp_file} --json ${flashDir}/crash.json --org OPTION_CRASH_REPORT_ORG --project OPTION_CRASH_REPORT_PROJECT --type crash),
        "timeout" : 30000,
        "retry" : 2,
        "mandatory" : false,
