@@ -117,7 +117,7 @@ VERSION_MAJOR  ?= 1
 VERSION_MINOR  ?= 0
 VERSION_PATCH  ?= 0
 
-# Get build number from environment or generate from YYWW
+# Get build number from environment or generate from MMSS
 ifeq ($(BUILD_NUMBER),)
 BUILD_NUMBER_PADDED := $(shell date +"%M%S")
 else
@@ -136,7 +136,11 @@ endif
 
 # By default use the following:
 # Year: %g, Workweek: %V (+1 to be aligned with the Intel WW calendar), Type: C (=Custom build), BuildNumber: %M%S
+ifeq ($(BUILD_LETTER),W)
+VERSION_STRING_SUFFIX ?= $(shell date +"%g")$(shell printf "%.*d" 2 $(shell expr `date +"%W"` + 2))$(BUILD_LETTER)$(shell printf "%04d" $(VERSION_PATCH))
+else
 VERSION_STRING_SUFFIX ?= $(shell date +"%g")$(shell printf "%.*d" 2 $(shell expr `date +"%V"` + 1))$(BUILD_LETTER)$(BUILD_NUMBER_TRUNCATED)
+endif
 
 ifeq ($(ARTIFACTORY_BUILD_URL),)
 DOWNLOAD_DIR_URL = file://$(abspath $(PUB))
