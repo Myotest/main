@@ -28,6 +28,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <nanokernel.h>
 #include "drivers/clk_system.h"
 #include "infra/device.h"
 #include "machine/soc/intel/quark_se/scss_registers.h"
@@ -35,11 +36,14 @@
 void set_clock_gate(struct clk_gate_info_s *clk_gate_info, uint32_t value)
 {
 	uint32_t tmp;
+	int flags = irq_lock();
 
 	tmp = MMIO_REG_VAL(clk_gate_info->clk_gate_register);
 	tmp &= ~(clk_gate_info->bits_mask);
 	tmp |= ((clk_gate_info->bits_mask) & value);
 	MMIO_REG_VAL(clk_gate_info->clk_gate_register) = tmp;
+
+	irq_unlock(flags);
 }
 
 static int clk_system_driver_init(struct td_device *dev)
