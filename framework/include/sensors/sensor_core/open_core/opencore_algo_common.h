@@ -142,6 +142,7 @@ typedef struct feed_general_t {
 	uint8_t idle_hold_flag : 1;
 	uint8_t no_idle_flag : 1;
 	uint8_t wake_up_clear_fifo_flag : 1;
+	uint8_t motion_sensor_flag : 1;
 }feed_general_t;
 
 /** @} */

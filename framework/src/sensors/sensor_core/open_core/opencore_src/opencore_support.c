@@ -338,11 +338,17 @@ void RefleshSensorCore(void)
 {
 	uint8_t active_flag = 0;
 	uint8_t suspend_flag = 0;
+	int motion_feed_on_count = 0;
 
 	raw_data_dump_flag = 0;
 	ResetPhySensorList();
 	for(list_t* node = feed_list.head; node != NULL; node = node->next){
 		feed_general_t* feed = (feed_general_t*)node;
+		if((feed->stat_flag & ON) && feed->motion_sensor_flag)
+			motion_feed_on_count++;	/* if the algo is subscribed and
+                                     * it depends on motion sensor data,
+                                     * then do NOT unsubcribe motion event */
+
 		if((feed->stat_flag & ON) != 0 && ((feed->stat_flag & IDLE) == 0 || (feed->stat_flag & WAKE_UP_CLEAR_FIFO) != 0)){
 			suspend_flag++;
 			for(int i = 0; i < feed->demand_length; i++){
@@ -405,7 +411,7 @@ void RefleshSensorCore(void)
 		}
 	}
 
-	if(active_flag == 0){
+	if(active_flag == 0 && motion_feed_on_count == 0){
 		if(suspend_flag == 0 && global_suspend_flag == 0){
 			//make bmi160 into suspend mode
 			sensor_handle_t* phy_sensor = GetIntSensStruct(SENSOR_ANY_MOTION, DEFAULT_ID);
@@ -941,6 +947,11 @@ static void FeedInit(void)
 				int type_match_flag = 0, id_match_flag = 0;
 				sensor_handle_t* phy_sensor_match_ptr = NULL;
 				int range_match_area = 0;
+
+				if( demand[i].type == SENSOR_ACCELEROMETER ||
+					demand[i].type == SENSOR_GYROSCOPE ||
+					demand[i].type == SENSOR_MAGNETOMETER)
+					feed->motion_sensor_flag = 1;	/* Mark the algo depends on motion sensor data*/
 
 				for(list_t* next = phy_sensor_list_poll.head; next != NULL; next = next->next){
 					//	void* temp_ptr = phy_sensor[core_type]->buffer - offsetof(struct sensor_data, data);
