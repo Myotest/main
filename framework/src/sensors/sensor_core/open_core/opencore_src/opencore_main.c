@@ -1048,10 +1048,11 @@ back:
 		}
 
 		if(poll_timeout != FOREVER_VALUE){
-			if(get_uptime_ms() - ts_last >= poll_timeout)
+			int uptime = get_uptime_ms();
+			if(uptime - ts_last >= poll_timeout)
 				goto back;
 			else
-				poll_timeout -= get_uptime_ms() - ts_last;
+				poll_timeout -= uptime - ts_last;
 		}
 
 		pm_wakelock_release(&opencore_main_wl);
