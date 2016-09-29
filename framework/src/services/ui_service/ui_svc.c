@@ -553,6 +553,11 @@ void ui_play_led(struct cfw_message *msg)
 			/* Stop the LED to be sure the callback function is not called */
 			led_pattern_handler_config(LED_NONE, NULL,
 						   led_req->led_id);
+			/* Release the semaphore as callback will not be called and ignore
+			 * error in case of multiple releases.
+			 */
+			OS_ERR_TYPE err = 0;
+			semaphore_give(led_play_done, &err);
 			break;
 		case PATTERN_CANCEL:
 			status = UI_BUSY;
