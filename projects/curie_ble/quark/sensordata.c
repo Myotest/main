@@ -68,11 +68,8 @@ static void handle_sensor_subscribe_data(struct cfw_message *msg)
 		/* BLE RSC profile reports stride cadence whereas the sensor reports
 		 * step cadence => need to convert the sensor value before BLE notification:
 		 * 1 stride = 2 steps */
-		if (p->activity == WALKING || p->activity == RUNNING) {
-			pr_info(LOG_MODULE_MAIN, "stride cadence=%d",
-				p->cadence / 2);
-			ble_rscs_update(0, p->cadence / 2);
-		}
+		pr_info(LOG_MODULE_MAIN, "stride cadence=%d", p->cadence / 2);
+		ble_rscs_update(0, p->cadence / 2);
 		break;
 	}
 }
