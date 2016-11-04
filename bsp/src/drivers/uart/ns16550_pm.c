@@ -71,12 +71,6 @@ static int ns16550_pm_init(struct td_device *td_dev)
 	/* Re-init hardware : assumed to be done by Zephyr before this point */
 	//uart_init(dev);
 
-	/* Drain RX FIFOs (no need to disable IRQ at this stage) */
-	// FC: it looks like it's already done at init time in uart_init
-	struct ns16550_pm_device *pmdev = td_dev->priv;
-	char c;
-	while (uart_poll_in(pmdev->zephyr_device, &c) != -1) ;
-
 	uart_console_init(td_dev);
 
 	return 0;

@@ -73,6 +73,13 @@ static struct ipc_uart ipc = {};
 
 DEFINE_LOG_MODULE(LOG_MODULE_IPC, " IPC")
 
+static bool ipc_uart_allow_sleep(void)
+{
+	return !(MMIO_REG_VAL_FROM_BASE(SOC_GPIO_AON_BASE_ADDR,
+					SOC_GPIO_EXT_PORTA) &
+		 (1 << BLE_QRK_INT_PIN));
+}
+
 void ipc_uart_close_channel(int channel_id)
 {
 	ipc.channels[channel_id].state = IPC_CHANNEL_STATE_CLOSED;
@@ -107,17 +114,21 @@ static int ipc_uart_ns16550_suspend(struct td_device *dev, PM_POWERSTATE state)
 {
 	struct ipc_uart_info *info = dev->priv;
 
-	/* Disable UART (set RTS/DTR) */
-	extern int uart_ns16550_suspend(struct device *dev);
-	int ret = uart_ns16550_suspend(info->uart_dev);
-	assert(ret != -1);
-
 	if (state == PM_SHUTDOWN) {
 		/* Disable message reception before reboot */
 		ipc_uart_ns16550_disable(dev);
+		return 0;
 	}
 
-	return ret;
+	if (!ipc_uart_allow_sleep()) {
+		pr_debug(LOG_MODULE_IPC, "ipc_uart_ns16550_suspend(state:%d)"
+			 "not allowed", state);
+		return -1;
+	}
+
+	/* Disable UART (set RTS/DTR) */
+	extern int uart_ns16550_suspend(struct device *dev);
+	return uart_ns16550_suspend(info->uart_dev);
 }
 
 void ipc_uart_isr();
@@ -250,6 +261,7 @@ void ipc_uart_isr()
 
 				if (ipc.rx_size == 0) {
 					if (ipc.rx_state == STATUS_RX_HDR) {
+						assert(ipc.rx_hdr.len != 0);
 						ipc.rx_ptr = balloc(
 							ipc.rx_hdr.len, NULL);
 						ipc.rx_size = ipc.rx_hdr.len;
