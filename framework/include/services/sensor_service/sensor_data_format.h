@@ -141,7 +141,9 @@ typedef enum {
 	RUNNING,
 	BIKING,
 	SLEEPING,
-	CLIMBING,
+	UPSTAIRING,
+	DOWNSTAIRING,
+	LEGSHAKING,
 } ss_activity_type_t;
 /**
  * Unique data struct provide all kinds of sensor data
