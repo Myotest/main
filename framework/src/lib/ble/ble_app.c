@@ -49,6 +49,9 @@
 #if defined(CONFIG_PACKAGE_ISPP)
 #include "ble_ispp.h"
 #endif
+#if defined(CONFIG_PACKAGE_IASP_TESTPOINT)
+#include "iasp_testpoint.h"
+#endif
 #include "lib/ble/lns/ble_lns.h"
 #include "lib/ble/rscs/ble_rscs.h"
 #if defined(CONFIG_UAS)
@@ -617,6 +620,9 @@ static void _ble_register_services(void)
 	/* ISPP_SVC */
 	ble_ispp_init();
 	pr_info(LOG_MODULE_BLE, "Registering %s", "ISPP");
+#endif
+#if defined(CONFIG_PACKAGE_IASP_TESTPOINT)
+	iasp_testpoint_init();
 #endif
 #if defined(CONFIG_UAS)
 	ble_uas_init();
