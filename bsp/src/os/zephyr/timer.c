@@ -711,7 +711,7 @@ void __attribute__ ((weak)) publish_cpu_timeout(uint32_t timeout_ms)
  */
 void timer_task(int dummy1, int dummy2)
 {
-	int64_t timeout = UINT32_MAX;
+	int32_t timeout = UINT32_MAX;
 	uint32_t now;
 
 	UNUSED(dummy1);
@@ -731,14 +731,15 @@ void timer_task(int dummy1, int dummy2)
 		while (g_CurrentTimerHead &&
 		       is_after_expiration(now, &(g_CurrentTimerHead->desc))) {
 			execute_callback(g_CurrentTimerHead);
+			now = get_uptime_ms();
 		}
 		/* Compute timeout until the expiration of the next timer */
 		if (g_CurrentTimerHead != NULL) {
-			now = get_uptime_ms();
 			/* In micro kernel context, timeout = 0 or timeout < 0 works.
 			 * In nano kernel context timeout must be a positive value.
 			 */
 			timeout = g_CurrentTimerHead->desc.expiration - now;
+			if (timeout < 0) panic(E_OS_ERR_OVERFLOW);
 		} else {
 			timeout = UINT32_MAX;
 		}
