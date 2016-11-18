@@ -181,6 +181,8 @@
 #define SCSS_MBOX_CHALL_STS             0x0AC0
 
 /* Power management */
+#define HOST_VR_BASE                    0x54c
+#define HOST_VR_ROKM                    (1 << 11)
 #define SLP_CFG_BASE                    0x550
 #define SLP_CFG_IO_STATE_RET_HOLD       (1 << 10)
 #define SLP_CFG_IO_STATE_RET_EN         (1 << 9)

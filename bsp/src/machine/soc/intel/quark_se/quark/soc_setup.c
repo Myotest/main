@@ -183,6 +183,10 @@ void soc_setup(void)
 	/* Rev 1 silicon has bit 2 of SLP_CFG register tied to 1 */
 	MMIO_REG_VAL_FROM_BASE(SCSS_REGISTER_BASE, SLP_CFG_BASE) &= ~(0x4);
 
+	/* Reset the Host voltage regulator ROKM bit */
+	MMIO_REG_VAL_FROM_BASE(SCSS_REGISTER_BASE,
+			       HOST_VR_BASE) &= ~(HOST_VR_ROKM);
+
 	printk("\n\n\n\nBOOT\n\n\nQuark SE ID %d Rev %d A%d\r\n",
 	       SCSS_REG_VAL(SCSS_ID), SCSS_REG_VAL(SCSS_REV),
 	       (MMIO_REG_VAL_FROM_BASE(SCSS_REGISTER_BASE,

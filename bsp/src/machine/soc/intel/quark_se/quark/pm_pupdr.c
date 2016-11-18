@@ -91,13 +91,8 @@ int pm_core_deepsleep()
 	int ack;
 	volatile uint32_t *slp_cfg = &SCSS_REG_VAL(SLP_CFG_BASE);
 	const uint32_t iostate_ret_mask =
-#ifdef CONFIG_QUARK_SE_DISABLE_INTERNAL_VREG
-		(SLP_CFG_VRET_SEL_135 | SLP_CFG_IO_STATE_RET_EN |
-		 SLP_CFG_LPMODE_EN);
-
-#else
 		(SLP_CFG_VRET_SEL_135 | SLP_CFG_IO_STATE_RET_EN);
-#endif
+
 	// Sent PM request to ARC core
 	PM_INIT_REQUEST(shared_data->pm_request, PM_SUSPEND_REQUEST,
 			PM_SUSPENDED);
@@ -161,12 +156,7 @@ resume_arc:
 	if (ack != PM_ACK_OK) panic(PANIC_ARC_RESUME_ERROR);
 
 	/* Release IO State Retention to re-connect output pins to SoC */
-#ifdef CONFIG_QUARK_SE_DISABLE_INTERNAL_VREG
-	*slp_cfg = SLP_CFG_IO_STATE_RET_HOLD | SLP_CFG_VRET_SEL_135 |
-		   SLP_CFG_LPMODE_EN;
-#else
 	*slp_cfg = SLP_CFG_IO_STATE_RET_HOLD | SLP_CFG_VRET_SEL_135;
-#endif
 failed:
 	return ret;
 }
