@@ -265,6 +265,9 @@ void self_test_accel(int argc, char **argv, struct tcmd_handler_ctx *ctx)
 			TCMD_RSP_ERROR(ctx, buffer);
 			break;
 		}
+
+		local_task_sleep_ms(SELF_TEST_DELAY * 2);
+
 		if (bmi160_start_accel_self_test(ACCEL_NEG_DIRECTION)) {
 			cx = snprintf(buffer, BUFFER_LENGTH, ERROR_CODE);
 			snprintf(buffer + cx, BUFFER_LENGTH - cx, "%d",
