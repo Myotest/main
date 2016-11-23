@@ -268,6 +268,7 @@ static void handle_message(struct cfw_message *msg, void *param)
 		break;
 	case MSG_ID_CIRCULAR_STORAGE_GET_REQ:
 		handle_get(msg);
+		break;
 	default:
 		cfw_print_default_handle_error_msg(LOG_MODULE_MAIN,
 						   CFW_MESSAGE_ID(
