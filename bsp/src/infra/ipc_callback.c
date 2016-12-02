@@ -28,6 +28,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <zephyr.h>
 #include "util/assert.h"
 
 #ifdef CONFIG_TCMD_MASTER
@@ -108,13 +109,15 @@ int ipc_sync_callback(uint8_t cpu_id, int request, int param1, int param2,
 #endif
 	case IPC_WRITE_MASK:
 	{
+		uint32_t flag = irq_lock();
 		/* param1 is data param2 is mask*/
-		uint32_t data = *(uint32_t *)ptr;
+		uint32_t data = *(volatile uint32_t *)ptr;
 		/* First pass 0->1 toggle */
 		data |= param1 & param2;
 		/* Second pass 1->0 toggle */
 		data &= param1 | ~param2;
-		*(uint32_t *)ptr = data;
+		*(volatile uint32_t *)ptr = data;
+		irq_unlock(flag);
 		break;
 	}
 	default:

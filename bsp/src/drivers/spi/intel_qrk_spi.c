@@ -143,20 +143,23 @@ static soc_spi_info_t soc_spi_devs[] = {
 #ifdef QRK_HW_V1
 static void cs_config(uint8_t gpio)
 {
-	MMIO_REG_VAL_FROM_BASE(SOC_GPIO_BASE_ADDR,
-			       SOC_GPIO_SWPORTA_DDR) |= (1 << gpio);
+	SET_MMIO_BIT((volatile uint32_t *)(SOC_GPIO_BASE_ADDR +
+					   SOC_GPIO_SWPORTA_DDR),
+		     (uint32_t)gpio);
 }
 
 static void cs_low(uint8_t gpio)
 {
-	MMIO_REG_VAL_FROM_BASE(SOC_GPIO_BASE_ADDR,
-			       SOC_GPIO_SWPORTA_DR) &= ~(1 << gpio);
+	CLEAR_MMIO_BIT((volatile uint32_t *)(SOC_GPIO_BASE_ADDR +
+					     SOC_GPIO_SWPORTA_DR),
+		       (uint32_t)gpio);
 }
 
 static void cs_high(uint8_t gpio)
 {
-	MMIO_REG_VAL_FROM_BASE(SOC_GPIO_BASE_ADDR,
-			       SOC_GPIO_SWPORTA_DR) |= (1 << gpio);
+	SET_MMIO_BIT((volatile uint32_t *)(SOC_GPIO_BASE_ADDR +
+					   SOC_GPIO_SWPORTA_DR),
+		     (uint32_t)gpio);
 }
 #endif
 
