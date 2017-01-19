@@ -137,7 +137,7 @@ endif
 # By default use the following:
 # Year: %g, Workweek: %V (+1 to be aligned with the Intel WW calendar), Type: C (=Custom build), BuildNumber: %M%S
 ifeq ($(BUILD_LETTER),W)
-VERSION_STRING_SUFFIX ?= $(shell date +"%g")$(shell printf "%.*d" 2 $(shell expr `date +"%W"` + 2))$(BUILD_LETTER)$(shell printf "%04d" $(VERSION_PATCH))
+VERSION_STRING_SUFFIX ?= $(shell date +"%g")$(shell printf "%.*d" 2 $(shell expr `date +"%W"` + 1))$(BUILD_LETTER)$(shell printf "%04d" $(VERSION_PATCH))
 else
 VERSION_STRING_SUFFIX ?= $(shell date +"%g")$(shell printf "%.*d" 2 $(shell expr `date +"%V"` + 1))$(BUILD_LETTER)$(BUILD_NUMBER_TRUNCATED)
 endif
