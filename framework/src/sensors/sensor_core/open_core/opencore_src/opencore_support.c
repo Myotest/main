@@ -222,7 +222,7 @@ static void ClosePhySensor(sensor_handle_t* phy_sensor)
 	SetSensSamplingTime(phy_sensor, 0);
 	phy_sensor->buffer = NULL;
 	phy_sensor->buffer_length = 0;
-
+	phy_sensor->npp = 0;
 	if(phy_sensor->fifo_length > 0)
 		mutex_unlock(phy_sensor->mutex);
 }

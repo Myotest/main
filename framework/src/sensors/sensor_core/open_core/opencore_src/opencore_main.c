@@ -203,7 +203,12 @@ static struct ia_cmd* CoreSensorControl(struct sensor_id* sensor_id, core_sensor
 						int	freq = ((struct subscription*)sensor_id)->sampling_interval;
 						int	rt = ((struct subscription*)sensor_id)->reporting_interval;
 						int rf_cnt_flag = 0;
-
+						sensor_handle_t* phy_sensor = GetPollSensStruct(sensor_id->sensor_type, sensor_id->dev_id);
+						if(phy_sensor != NULL){
+							phy_sensor->npp = 0;
+							if((phy_sensor->stat_flag&IDLE) != 0 && (exposed_sensor->stat_flag & DIRECT_RAW) != 0)
+								phy_sensor->stat_flag &= ~IDLE;
+						}
 						if((exposed_sensor->stat_flag & DIRECT_RAW) != 0){
 							if(calibration_flag == 1 || rt <= 0 || freq <= 0 || (1000 / freq) > rt){
 								rv->ret = RESP_DEVICE_EXCEPTION;
@@ -270,6 +275,7 @@ static struct ia_cmd* CoreSensorControl(struct sensor_id* sensor_id, core_sensor
 				case ALGO_UNSUBSCRIBE:
 					{
 						int rf_cnt_flag = 0;
+						int clear_idle_flag = 0;
 						if((exposed_sensor->stat_flag & ON) != 0)
 							exposed_sensor->stat_flag &= ~(SUBSCRIBED | ON);
 						else
@@ -289,6 +295,9 @@ static struct ia_cmd* CoreSensorControl(struct sensor_id* sensor_id, core_sensor
 												feed->ctl_api.reset(feed);
 											act1++;
 										}
+								} else {
+									if((feed->stat_flag & IDLE) == 0)
+										clear_idle_flag++;
 								}
 								if(rf_cnt_flag == 0)
 									feed->rf_cnt--;
@@ -299,7 +308,12 @@ static struct ia_cmd* CoreSensorControl(struct sensor_id* sensor_id, core_sensor
 								act2++;
 							}
 						}
-
+						if(!clear_idle_flag && no_motion_flag)
+						{
+							sensor_handle_t* phy_sensor = GetPollSensStruct(sensor_id->sensor_type, sensor_id->dev_id);
+							if(phy_sensor != NULL)
+								phy_sensor->stat_flag |= IDLE;
+						}
 						if(act2 == 0)
 							rv->ret = RESP_DEVICE_EXCEPTION;
 
