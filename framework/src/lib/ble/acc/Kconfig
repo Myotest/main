@@ -1,0 +1,4 @@
+config BLE_ACC_LIB
+	bool "ACC service"
+	default y if BLE_APP
+	
