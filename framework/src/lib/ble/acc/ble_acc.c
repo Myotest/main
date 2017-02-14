@@ -33,7 +33,7 @@
 
  #include <bluetooth/gatt.h>
  #include <bluetooth/uuid.h>
- #include "../../internal/projects/curie_streaming/quark/rawdata.h"
+ #include "../../internal/projects/Myotest_Raw_ACC/quark/rawdata.h"
 
 
 /* Main UUID */
