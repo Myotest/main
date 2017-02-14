@@ -54,6 +54,7 @@
 #endif
 #include "lib/ble/lns/ble_lns.h"
 #include "lib/ble/rscs/ble_rscs.h"
+#include "lib/ble/acc/ble_acc.h"
 #if defined(CONFIG_UAS)
 #include "ble_uas.h"
 #endif
@@ -71,6 +72,8 @@
 /* NBLE specific */
 #include "gap_internal.h"
 
+#include "../../internal/projects/curie_streaming/quark/rawdata.h"
+
 /*
  * Local macros definition
  */
@@ -82,8 +85,8 @@
 #define BLE_DEV_NAME "Curie-"
 
 /* Connection parameters used for Peripheral Preferred Connection Parameters (PPCP) and update request */
-#define MIN_CONN_INTERVAL MSEC_TO_1_25_MS_UNITS(80)
-#define MAX_CONN_INTERVAL MSEC_TO_1_25_MS_UNITS(151)
+#define MIN_CONN_INTERVAL 7	//MSEC_TO_1_25_MS_UNITS(10)
+#define MAX_CONN_INTERVAL 16//MSEC_TO_1_25_MS_UNITS(151)
 #define SLAVE_LATENCY 0
 #define CONN_SUP_TIMEOUT MSEC_TO_10_MS_UNITS(6000)
 
@@ -93,6 +96,8 @@
 #define MANUFACTURER_NAME "IntelCorp"
 #define MODEL_NUM         "Curie"
 #define HARDWARE_REV       "1.0"
+#define MYOTEST_ADVERTISED_SERVICE_LO 0x00
+#define MYOTEST_ADVERTISED_SERVICE_HI 0xBB
 
 #define BLE_DEVICE_NAME_WRITE_PERM GAP_SEC_NO_PERMISSION
 
@@ -123,6 +128,7 @@ struct ble_app_cb {
 };
 
 static struct ble_app_cb _ble_app_cb = { 0 };
+
 
 /* Internal msg for property storage helper */
 struct ble_app_prop_rd_msg {
@@ -499,9 +505,14 @@ static void advertise_start(enum ble_adv_reason reason)
 			      (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
 		BT_DATA_BYTES(BT_DATA_GAP_APPEARANCE, BLE_APP_APPEARANCE & 0xFF,
 			      BLE_APP_APPEARANCE >> 8),
+		BT_DATA_BYTES(BT_DATA_UUID16_SOME,
+			      MYOTEST_ADVERTISED_SERVICE_LO,
+				  MYOTEST_ADVERTISED_SERVICE_HI),
+				  /*
 		BT_DATA_BYTES(BT_DATA_MANUFACTURER_DATA, BLE_APP_MANUFACTURER &
 			      0xFF,
 			      BLE_APP_MANUFACTURER >> 8),
+				  */
 		BT_DATA(BT_DATA_NAME_COMPLETE, _ble_app_cb.device_name,
 			strlen((char *)_ble_app_cb.device_name))
 	};
@@ -628,6 +639,12 @@ static void _ble_register_services(void)
 	ble_uas_init();
 	pr_info(LOG_MODULE_BLE, "Registering %s", "UAS");
 #endif
+
+ #if defined(CONFIG_BLE_ACC_LIB)
+ 	/* ACC_SVC */
+ 	ble_acc_init();
+ 	pr_info(LOG_MODULE_BLE, "Registering %s", "ACC");
+ #endif
 }
 
 static void on_connected(struct bt_conn *conn, uint8_t err)
@@ -697,7 +714,7 @@ static void on_disconnected(struct bt_conn *conn, uint8_t reason)
 #endif
 	pr_info(LOG_MODULE_MAIN, "BLE disconnected(conn: %p, hci_reason: 0x%x)",
 		conn, reason);
-
+	stopAcc();
 	ble_app_delete_conn_timer();
 }
 
