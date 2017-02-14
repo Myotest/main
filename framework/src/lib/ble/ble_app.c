@@ -72,7 +72,7 @@
 /* NBLE specific */
 #include "gap_internal.h"
 
-#include "../../internal/projects/curie_streaming/quark/rawdata.h"
+#include "../../internal/projects/Myotest_Raw_ACC/quark/rawdata.h"
 
 /*
  * Local macros definition
