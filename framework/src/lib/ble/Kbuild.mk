@@ -4,6 +4,7 @@ obj-y += gap/
 obj-y += hrs/
 obj-y += lns/
 obj-y += rscs/
+obj-y += acc/
 obj-y += tcmd/
 obj-$(CONFIG_BLE_APP) += ble_app.o
 
