@@ -60,35 +60,6 @@
  };
 
 
-/* Acc enable call back */
-/*
-static ssize_t write_acc_enable(struct bt_conn *conn,
-				   const struct bt_gatt_attr *attr,
-				   const void *buf, uint16_t len,
-				   uint16_t offset)
-{
-  const uint8_t *data = buf;
-
-  if(len > 1)
-    pr_error(LOG_MODULE_BLE, "Wrong acc sampling enable value should be 0 or 1");
-  else
-  {
-    if(*data == 1)
-    {
-      pr_info(LOG_MODULE_BLE, "Enable");
-      startAcc();
-    }
-    else
-    {
-      pr_info(LOG_MODULE_BLE, "Disable");
-      stopAcc();
-    }
-
-  }
-  return len;
-}
-*/
-
 /* Config write call back */
 static ssize_t write_Config(struct bt_conn *conn,
 				   const struct bt_gatt_attr *attr,

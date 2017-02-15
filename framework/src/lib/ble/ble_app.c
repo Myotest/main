@@ -629,8 +629,10 @@ static void _ble_register_services(void)
 
 #if defined(CONFIG_PACKAGE_ISPP)
 	/* ISPP_SVC */
+	/*
 	ble_ispp_init();
 	pr_info(LOG_MODULE_BLE, "Registering %s", "ISPP");
+	*/
 #endif
 #if defined(CONFIG_PACKAGE_IASP_TESTPOINT)
 	iasp_testpoint_init();
