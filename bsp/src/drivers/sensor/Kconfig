@@ -105,7 +105,7 @@ if BMI160
 
 	config BMI160_CONVERT_ACCEL_DATA
 		bool "convert accel data in mg"
-		default y
+		default n
 		help
 			Convert accel sensor data in mg.
 
